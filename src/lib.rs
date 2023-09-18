@@ -1,10 +1,8 @@
-use std::io;
+mod image_decode;
 
-use ffimage::color::Rgb;
-use ffimage::packed::{ImageBuffer, ImageView};
-use ffimage::traits::Convert;
-use ffimage_yuv::{yuv::Yuv, yuyv::Yuyv};
+use image::DynamicImage;
 use log;
+use std::io;
 use v4l::FourCC;
 use v4l::io::traits::CaptureStream;
 use v4l::video::Capture;
@@ -19,6 +17,8 @@ pub struct QRScanStream<'a> {
 	stream: v4l::prelude::MmapStream<'a>,
 	format: v4l::Format,
 	decoder: DefaultDecoder,
+	converter: Box<dyn Fn(&[u8], u32, u32) -> io::Result<
+		DynamicImage>>,
 }
 
 fn decoded_results_to_vec(results: Vec<Result<String, anyhow::Error>>)
@@ -35,22 +35,6 @@ fn decoded_results_to_vec(results: Vec<Result<String, anyhow::Error>>)
 		};
 	}
 	return result;
-}
-
-fn yuv422_to_image(src: &[u8], width: u32, height: u32)
--> io::Result<Vec<u8>> {
-	let img = ImageView::<Yuyv<u8>>::from_buf(src, width, height);
-	let yuv422 = match img {
-		Some(view) => view,
-		None => return Err(io::Error::new(
-			io::ErrorKind::InvalidInput,
-			"Failed to convert to yuv422")),
-	};
-	let mut yuv444 = ImageBuffer::<Yuv<u8>>::new(width, height, 0u8);
-	yuv422.convert(&mut yuv444);
-	let mut rgb = ImageBuffer::<Rgb<u8>>::new(width, height, 0u8);
-	yuv444.convert(&mut rgb);
-	return Ok(rgb.into_buf());
 }
 
 // lower resolution has faster result
@@ -88,8 +72,9 @@ impl<'a> QRScanStream<'a> {
 		let (width, height) = calc_framesize(&dev, &fourcc)?;
 		format.height = height;
 		format.width = width;
+		log::debug!("Choosen camera format: {:?}", format);
 		format = dev.set_format(&format)?;
-		log::debug!("Camera format: {:?}", format);
+		log::debug!("Camera format set: {:?}", format);
 		if format.fourcc != fourcc {
 			return Err(io::Error::new(
 				io::ErrorKind::InvalidInput,
@@ -101,32 +86,29 @@ impl<'a> QRScanStream<'a> {
 			buffer_count)?;
 		let decoder = bardecoder::default_decoder();
 		stream.next()?; // warmup
+		let conv = if format.fourcc == FourCC::new(b"YUYV") {
+			image_decode::yuv422_to_image
+		} else {
+			return Err(io::Error::new(
+				io::ErrorKind::InvalidInput,
+				"No Camera format supported"));
+		};
 		return Ok(QRScanStream {
 			stream: stream,
 			format: format,
 			decoder: decoder,
+			converter: Box::new(conv),
 		});
 	}
 
 	pub fn decode_next(self: &mut Self) -> io::Result<Vec<String>> {
 		let (buf, _meta) = self.stream.next()?;
 		let buf_vec = buf.to_vec();
-		let rgb_buf = yuv422_to_image(
+		let img = (self.converter)(
 			&buf_vec,
 			self.format.width,
 			self.format.height)?;
-		let image_option = <image::RgbImage>::from_vec(
-			self.format.width, self.format.height, rgb_buf);
-		match image_option {
-			Some(img_buf) => {
-				let image = image::DynamicImage::ImageRgb8(
-					img_buf);
-				let results = self.decoder.decode(&image);
-				return Ok(decoded_results_to_vec(results));
-			},
-			None => {
-				return Ok(vec![]);
-			},
-		}
+		let results = self.decoder.decode(&img);
+		return Ok(decoded_results_to_vec(results));
 	}
 }
