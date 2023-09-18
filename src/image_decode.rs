@@ -78,4 +78,12 @@ mod tests {
 		assert_eq!(result.into_rgb8().into_raw(), read_file(
 			"MJPG_1_raw").unwrap());
 	}
+
+	#[test]
+	fn yuv422_to_image() {
+		let data = read_file("YUYV_1_in").unwrap();
+		let result = super::yuv422_to_image(&data, 640, 480).unwrap();
+		assert_eq!(result.into_rgb8().into_raw(), read_file(
+			"YUYV_1_raw").unwrap());
+	}
 }
