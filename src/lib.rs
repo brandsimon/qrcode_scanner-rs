@@ -82,6 +82,7 @@ fn choose_and_set_format(dev: &v4l::Device, target: TargetFrameSize)
 -> io::Result<v4l::Format> {
 	let fourccs = vec![
 		FourCC::new(b"YUYV"),
+		FourCC::new(b"MJPG"),
 	];
 	let mut formats = vec![];
 	for fourcc in fourccs {
@@ -124,6 +125,8 @@ impl<'a> QRScanStream<'a> {
 		stream.next()?; // warmup
 		let conv = if format.fourcc == FourCC::new(b"YUYV") {
 			image_decode::yuv422_to_image
+		} else if format.fourcc == FourCC::new(b"MJPG") {
+			image_decode::guess_image
 		} else {
 			return Err(io::Error::new(
 				io::ErrorKind::InvalidInput,

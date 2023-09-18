@@ -5,6 +5,8 @@ use ffimage::packed::{ImageBuffer, ImageView};
 use ffimage::traits::Convert;
 use ffimage_yuv::{yuv::Yuv, yuyv::Yuyv};
 use image::DynamicImage;
+use image::io::Reader as ImageReader;
+use std::io::Cursor;
 
 
 pub fn image_decode_error() -> io::Result<DynamicImage> {
@@ -30,4 +32,50 @@ pub fn yuv422_to_image(src: &[u8], width: u32, height: u32)
 		},
 		None => return image_decode_error(),
 	};
+}
+
+pub fn guess_image(src: &[u8], _width: u32, _height: u32)
+-> io::Result<DynamicImage> {
+	let img_reader = ImageReader::new(Cursor::new(src));
+	let img_reader_guess = match img_reader.with_guessed_format() {
+		Ok(i) => i,
+		Err(e) => {
+			log::debug!("{}", e);
+			return image_decode_error();
+		},
+	};
+	return match img_reader_guess.decode() {
+		Ok(i) => Ok(i),
+		Err(e) => {
+			log::debug!("{}", e);
+			image_decode_error()
+		},
+	};
+}
+
+#[cfg(test)]
+mod tests {
+	use std::io;
+	use std::io::{BufReader, Read};
+	use std::fs::File;
+	use std::path::Path;
+
+	fn read_file(filename: &str) -> io::Result<Vec<u8>> {
+		let mut path = Path::new(
+			"tests/files/image_decode").to_path_buf();
+		path.push(filename);
+		let f = File::open(path)?;
+		let mut reader = BufReader::new(f);
+		let mut buffer = Vec::new();
+		reader.read_to_end(&mut buffer)?;
+		return Ok(buffer);
+	}
+
+	#[test]
+	fn guess_image_mjpg() {
+		let data = read_file("MJPG_1_in").unwrap();
+		let result = super::guess_image(&data, 0, 0).unwrap();
+		assert_eq!(result.into_rgb8().into_raw(), read_file(
+			"MJPG_1_raw").unwrap());
+	}
 }
