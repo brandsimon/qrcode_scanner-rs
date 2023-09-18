@@ -12,7 +12,7 @@ fn main() {
 	let mut qr_stream = match qr_stream_res {
 		Ok(q) => q,
 		Err(e) => {
-			println!("Failed to create QRCodeStream: {}", e);
+			println!("Failed to create QRScanStream: {}", e);
 			return;
 		},
 	};
