@@ -1,10 +1,10 @@
 [package]
 name = "qrcode_scanner"
-version = "0.1.0"
+version = "0.1.1"
 edition = "2021"
 authors = ["Simon Brand <simon.brand@postadigitale.de>"]
 license = "MIT"
-keywords = ["QR-Code", "qrcode", "Scaner", "scan"]
+keywords = ["QR-Code", "qrcode", "Scanner", "scan"]
 categories = ["computer-vision", "multimedia", "multimedia::video"]
 description = "Scan qr-codes from video4linux devices"
 homepage = "https://github.com/brandsimon/qrcode_scanner-rs"
@@ -14,7 +14,7 @@ repository = "https://github.com/brandsimon/qrcode_scanner-rs"
 anyhow = "1.0"
 bardecoder = "0.5"
 ffimage = "0.9"
-log = "0.4"
 ffimage_yuv = "0.9"
 image = "0.24"
+log = "0.4"
 v4l = "0.14"
