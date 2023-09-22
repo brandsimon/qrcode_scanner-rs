@@ -175,7 +175,8 @@ impl<'a> QRScanStream<'a> {
 	pub fn new_with_framesize(path: String, target: TargetFrameSize)
 	-> io::Result<QRScanStream<'a>> {
 		let mut dev = v4l::Device::with_path(path)?;
-		let buffer_count = 30;
+		// smaller buffer yields a faster reaction to a changed image
+		let buffer_count = 3;
 		let format = choose_and_set_format(&dev, target)?;
 		let mut stream = v4l::prelude::MmapStream::with_buffers(
 			&mut dev,
