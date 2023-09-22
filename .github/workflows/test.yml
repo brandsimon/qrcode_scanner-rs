@@ -11,3 +11,5 @@ jobs:
       - run: sudo apt-get update
       - run: sudo apt-get --yes install cargo
       - run: cargo test --workspace --verbose
+      - run: rustup override set 1.63.0
+      - run: cargo test --workspace --verbose
