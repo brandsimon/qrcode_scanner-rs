@@ -145,11 +145,11 @@ fn converter_for_fourcc(fourcc: &FourCC) -> io::Result<ConverterFunction> {
 	}));
 }
 
-/// Decode QR-/Barcodes from a v4l device
+/// Decode QR-/Barcodes from a camera device
 impl<'a> QRScanStream<'a> {
-	/// Create a `QRScanStream` from a v4l device
+	/// Create a `QRScanStream` from a camera device
 	///
-	/// The `QRScanStream` will open the v4l device, record images and
+	/// The `QRScanStream` will open the camera device, record images and
 	/// try to decode QR-Codes and Barcodes from them.
 	///
 	/// ```
@@ -169,9 +169,9 @@ impl<'a> QRScanStream<'a> {
 		);
 	}
 
-	/// Create a `QRScanStream` from a v4l device with a target frame size
+	/// Create a `QRScanStream` with a target frame size
 	///
-	/// The v4l device will be configured with a frame size as close
+	/// The camera device will be configured with a frame size as close
 	/// as possible to the target frame size. A bigger frame size needs
 	/// longer to process individual images.
 	///
