@@ -154,7 +154,7 @@ impl<'a> QRScanStream<'a> {
 	/// let res = scanner.decode_next().unwrap();
 	/// # }
 	pub fn new(path: String) -> io::Result<QRScanStream<'a>> {
-		return QRScanStream::new_with_framesize(
+		return QRScanStream::with_framesize(
 			path, TargetFrameSize { width: 640, height: 480 });
 	}
 
@@ -168,11 +168,11 @@ impl<'a> QRScanStream<'a> {
 	/// use qrcode_scanner::{QRScanStream, TargetFrameSize};
 	/// # fn no_v4l_device() {
 	/// let target = TargetFrameSize { width: 720, height: 540 };
-	/// let mut scanner = QRScanStream::new_with_framesize(
+	/// let mut scanner = QRScanStream::with_framesize(
 	///     "/dev/video0".to_string(), target).unwrap();
 	/// let res = scanner.decode_next().unwrap();
 	/// # }
-	pub fn new_with_framesize(path: String, target: TargetFrameSize)
+	pub fn with_framesize(path: String, target: TargetFrameSize)
 	-> io::Result<QRScanStream<'a>> {
 		let mut dev = v4l::Device::with_path(path)?;
 		// smaller buffer yields a faster reaction to a changed image
