@@ -83,7 +83,7 @@ fn choose_framesize(
 			}
 		}
 	}
-	if fourcc == FourCC::new(b"0000") {
+	if diff == u32::MAX {
 		return Err(io::Error::new(
 			io::ErrorKind::InvalidInput,
 			"No camera format supported"));
