@@ -1,4 +1,5 @@
 use std::env;
+
 use qrcode_scanner;
 
 fn main() {
@@ -14,7 +15,7 @@ fn main() {
 		Err(e) => {
 			println!("Failed to create QRScanStream: {}", e);
 			return;
-		},
+		}
 	};
 	loop {
 		let results = match qr_stream.decode_next() {
@@ -22,7 +23,7 @@ fn main() {
 			Err(e) => {
 				println!("Failed to decode image: {}", e);
 				continue;
-			},
+			}
 		};
 		for res in results {
 			println!("Found: {}", res);

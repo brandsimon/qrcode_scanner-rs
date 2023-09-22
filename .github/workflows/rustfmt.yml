@@ -1,0 +1,12 @@
+name: Check rust formatting
+
+on: [push, pull_request]
+
+jobs:
+  formatting:
+    name: Check formatting
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v2
+      - name: Check formatting
+        run: cargo fmt --all -- --check
