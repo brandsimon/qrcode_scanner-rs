@@ -120,7 +120,7 @@ fn choose_and_set_format(
 	format.fourcc = fourcc;
 	format.height = height;
 	format.width = width;
-	log::debug!("Choosen camera format: {:?}", format);
+	log::debug!("Chosen camera format: {:?}", format);
 	format = dev.set_format(&format)?;
 	log::debug!("Camera format set: {:?}", format);
 	if format.fourcc != fourcc {
