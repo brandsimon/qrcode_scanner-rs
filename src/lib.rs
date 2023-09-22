@@ -18,7 +18,7 @@ type DefaultDecoder = bardecoder::Decoder<
 type ConverterFunction = Box<
 	dyn Fn(&[u8], u32, u32) -> io::Result<DynamicImage>>;
 
-pub enum QRScanStream<'a> {
+enum State<'a> {
 	V4l {
 		stream: v4l::prelude::MmapStream<'a>,
 		format: v4l::Format,
@@ -32,6 +32,10 @@ pub enum QRScanStream<'a> {
 	TestResults {
 		results: VecDeque<io::Result<Vec<String>>>,
 	},
+}
+
+pub struct QRScanStream<'a> {
+	state: State<'a>,
 }
 
 fn decoded_results_to_vec(results: Vec<Result<String, anyhow::Error>>)
@@ -185,12 +189,12 @@ impl<'a> QRScanStream<'a> {
 		let decoder = bardecoder::default_decoder();
 		stream.next()?; // warmup
 		let conv = converter_for_fourcc(&format.fourcc)?;
-		return Ok(QRScanStream::V4l {
+		return Ok(QRScanStream { state: State::V4l {
 			stream: stream,
 			format: format,
 			decoder: decoder,
 			converter: conv,
-		});
+		}});
 	}
 
 	/// Create a `QRScanStream` from test images
@@ -236,10 +240,10 @@ impl<'a> QRScanStream<'a> {
 		data: VecDeque<(FourCC, u32, u32, Vec<u8>)>)
 	-> io::Result<QRScanStream<'a>> {
 		let decoder = bardecoder::default_decoder();
-		return Ok(QRScanStream::TestImages {
+		return Ok(QRScanStream { state: State::TestImages {
 			input_data: data,
 			decoder: decoder,
-		});
+		}});
 	}
 
 	/// Create a `QRScanStream` from test results
@@ -272,9 +276,9 @@ impl<'a> QRScanStream<'a> {
 	pub fn with_test_results(
 		data: VecDeque<io::Result<Vec<String>>>)
 	-> io::Result<QRScanStream<'a>> {
-		return Ok(QRScanStream::TestResults {
+		return Ok(QRScanStream { state: State::TestResults {
 			results: data,
-		});
+		}});
 	}
 
 	/// Search the next frame for QR- or Barcodes
@@ -285,8 +289,8 @@ impl<'a> QRScanStream<'a> {
 	/// If the `QRScanStream` was initialized with test data, the test
 	/// data is returned.
 	pub fn decode_next(self: &mut Self) -> io::Result<Vec<String>> {
-		let (decoder, img) = match self {
-			QRScanStream::TestResults {
+		let (decoder, img) = match &mut self.state {
+			State::TestResults {
 				results,
 			} => {
 				return match results.pop_front() {
@@ -294,7 +298,7 @@ impl<'a> QRScanStream<'a> {
 					None => empty_test_error(),
 				};
 			},
-			QRScanStream::V4l {
+			State::V4l {
 				stream,
 				format,
 				decoder,
@@ -307,7 +311,7 @@ impl<'a> QRScanStream<'a> {
 					format.width, format.height)?;
 				(decoder, img)
 			},
-			QRScanStream::TestImages {
+			State::TestImages {
 				decoder,
 				input_data,
 			} => {
