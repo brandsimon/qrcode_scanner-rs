@@ -1,19 +1,19 @@
 mod image_decode;
 
-use std::collections::VecDeque;
+use std::collections::{HashMap, VecDeque};
 use std::io;
 
 use image::DynamicImage;
 use log;
+use rxing::{
+	common::HybridBinarizer,
+	multi::{GenericMultipleBarcodeReader, MultipleBarcodeReader},
+	BinaryBitmap, BufferedImageLuminanceSource, Exceptions,
+	MultiUseMultiFormatReader, RXingResult,
+};
 use v4l::io::traits::CaptureStream;
 use v4l::video::Capture;
 use v4l::FourCC;
-
-type DefaultDecoder = bardecoder::Decoder<
-	image::DynamicImage,
-	image::ImageBuffer<image::Luma<u8>, Vec<u8>>,
-	String,
->;
 
 type ConverterFunction =
 	Box<dyn Fn(&[u8], u32, u32) -> io::Result<DynamicImage>>;
@@ -22,11 +22,9 @@ enum State<'a> {
 	V4l {
 		stream: v4l::prelude::MmapStream<'a>,
 		format: v4l::Format,
-		decoder: DefaultDecoder,
 		converter: ConverterFunction,
 	},
 	TestImages {
-		decoder: DefaultDecoder,
 		input_data: VecDeque<(FourCC, u32, u32, Vec<u8>)>,
 	},
 	TestResults {
@@ -39,18 +37,18 @@ pub struct QRScanStream<'a> {
 }
 
 fn decoded_results_to_vec(
-	results: Vec<Result<String, anyhow::Error>>,
+	results: Result<Vec<RXingResult>, Exceptions>,
 ) -> Vec<String> {
 	let mut result = Vec::new();
-	for r in results {
-		match r {
-			Ok(inner) => {
-				result.push(inner);
-			}
-			Err(_e) => {
-				log::debug!("{}", _e);
-			}
-		};
+	let res = match results {
+		Ok(r) => r,
+		Err(_e) => {
+			log::debug!("{}", _e);
+			return result;
+		}
+	};
+	for r in res {
+		result.push(r.getText().to_string());
 	}
 	return result;
 }
@@ -196,14 +194,12 @@ impl<'a> QRScanStream<'a> {
 			v4l::buffer::Type::VideoCapture,
 			buffer_count,
 		)?;
-		let decoder = bardecoder::default_decoder();
 		stream.next()?; // warmup
 		let conv = converter_for_fourcc(&format.fourcc)?;
 		return Ok(QRScanStream {
 			state: State::V4l {
 				stream: stream,
 				format: format,
-				decoder: decoder,
 				converter: conv,
 			},
 		});
@@ -251,12 +247,8 @@ impl<'a> QRScanStream<'a> {
 	pub fn with_test_images(
 		data: VecDeque<(FourCC, u32, u32, Vec<u8>)>,
 	) -> io::Result<QRScanStream<'a>> {
-		let decoder = bardecoder::default_decoder();
 		return Ok(QRScanStream {
-			state: State::TestImages {
-				input_data: data,
-				decoder: decoder,
-			},
+			state: State::TestImages { input_data: data },
 		});
 	}
 
@@ -303,7 +295,7 @@ impl<'a> QRScanStream<'a> {
 	/// If the `QRScanStream` was initialized with test data, the test
 	/// data is returned.
 	pub fn decode_next(self: &mut Self) -> io::Result<Vec<String>> {
-		let (decoder, img) = match &mut self.state {
+		let img = match &mut self.state {
 			State::TestResults { results } => {
 				return match results.pop_front() {
 					Some(i) => i,
@@ -313,7 +305,6 @@ impl<'a> QRScanStream<'a> {
 			State::V4l {
 				stream,
 				format,
-				decoder,
 				converter,
 			} => {
 				let (buf, _meta) = stream.next()?;
@@ -323,12 +314,9 @@ impl<'a> QRScanStream<'a> {
 					format.width,
 					format.height,
 				)?;
-				(decoder, img)
+				img
 			}
-			State::TestImages {
-				decoder,
-				input_data,
-			} => {
+			State::TestImages { input_data } => {
 				let data = match input_data.pop_front() {
 					Some(d) => d,
 					None => {
@@ -337,10 +325,19 @@ impl<'a> QRScanStream<'a> {
 				};
 				let conv = &converter_for_fourcc(&data.0)?;
 				let img = (conv)(&data.3, data.1, data.2)?;
-				(decoder, img)
+				img
 			}
 		};
-		let results = decoder.decode(&img);
+		// TODO: move to struct?
+		let multi_format_reader = MultiUseMultiFormatReader::default();
+		let mut scanner =
+			GenericMultipleBarcodeReader::new(multi_format_reader);
+		let results = scanner.decode_multiple_with_hints(
+			&mut BinaryBitmap::new(HybridBinarizer::new(
+				BufferedImageLuminanceSource::new(img),
+			)),
+			&HashMap::new(),
+		);
 		return Ok(decoded_results_to_vec(results));
 	}
 }
