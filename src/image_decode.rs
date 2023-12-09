@@ -2,9 +2,8 @@ use std::io;
 use std::io::Cursor;
 
 use ffimage::color::Rgb;
-use ffimage::packed::{ImageBuffer, ImageView};
-use ffimage::traits::Convert;
-use ffimage_yuv::{yuv::Yuv, yuyv::Yuyv};
+use ffimage::iter::{BytesExt, ColorConvertExt, PixelsExt};
+use ffimage_yuv::{yuv::Yuv, yuv422::Yuv422};
 use image::io::Reader as ImageReader;
 use image::DynamicImage;
 
@@ -20,16 +19,16 @@ pub fn yuv422_to_image(
 	width: u32,
 	height: u32,
 ) -> io::Result<DynamicImage> {
-	let img = ImageView::<Yuyv<u8>>::from_buf(src, width, height);
-	let yuv422 = match img {
-		Some(view) => view,
-		None => return image_decode_error(),
-	};
-	let mut yuv444 = ImageBuffer::<Yuv<u8>>::new(width, height, 0u8);
-	yuv422.convert(&mut yuv444);
-	let mut rgb = ImageBuffer::<Rgb<u8>>::new(width, height, 0u8);
-	yuv444.convert(&mut rgb);
-	match <image::RgbImage>::from_vec(width, height, rgb.into_buf()) {
+	let mut rgb = vec![0; (width * height * 3) as usize];
+	src.iter()
+		.copied()
+		.pixels::<Yuv422<u8, 0, 2, 1, 3>>()
+		.colorconvert::<[Yuv<u8>; 2]>()
+		.flatten()
+		.colorconvert::<Rgb<u8>>()
+		.bytes()
+		.write(&mut rgb);
+	match <image::RgbImage>::from_vec(width, height, rgb) {
 		Some(i) => {
 			return Ok(DynamicImage::ImageRgb8(i));
 		}

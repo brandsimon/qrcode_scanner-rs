@@ -12,4 +12,5 @@ jobs:
       - run: sudo apt-get --yes install cargo
       - run: cargo test --workspace --verbose
       - run: rustup override set 1.63.0
+      - run: cp tests/Cargo_1_63.lock Cargo.lock
       - run: cargo test --workspace --verbose
