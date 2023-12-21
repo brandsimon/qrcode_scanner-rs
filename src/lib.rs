@@ -23,9 +23,13 @@ enum State<'a> {
 		stream: v4l::prelude::MmapStream<'a>,
 		format: v4l::Format,
 		converter: ConverterFunction,
+		decoder:
+			GenericMultipleBarcodeReader<MultiUseMultiFormatReader>,
 	},
 	TestImages {
 		input_data: VecDeque<(FourCC, u32, u32, Vec<u8>)>,
+		decoder:
+			GenericMultipleBarcodeReader<MultiUseMultiFormatReader>,
 	},
 	TestResults {
 		results: VecDeque<io::Result<Vec<String>>>,
@@ -196,11 +200,15 @@ impl<'a> QRScanStream<'a> {
 		)?;
 		stream.next()?; // warmup
 		let conv = converter_for_fourcc(&format.fourcc)?;
+		let multi_format_reader = MultiUseMultiFormatReader::default();
+		let decoder =
+			GenericMultipleBarcodeReader::new(multi_format_reader);
 		return Ok(QRScanStream {
 			state: State::V4l {
 				stream: stream,
 				format: format,
 				converter: conv,
+				decoder: decoder,
 			},
 		});
 	}
@@ -247,8 +255,14 @@ impl<'a> QRScanStream<'a> {
 	pub fn with_test_images(
 		data: VecDeque<(FourCC, u32, u32, Vec<u8>)>,
 	) -> io::Result<QRScanStream<'a>> {
+		let multi_format_reader = MultiUseMultiFormatReader::default();
+		let decoder =
+			GenericMultipleBarcodeReader::new(multi_format_reader);
 		return Ok(QRScanStream {
-			state: State::TestImages { input_data: data },
+			state: State::TestImages {
+				input_data: data,
+				decoder: decoder,
+			},
 		});
 	}
 
@@ -295,7 +309,7 @@ impl<'a> QRScanStream<'a> {
 	/// If the `QRScanStream` was initialized with test data, the test
 	/// data is returned.
 	pub fn decode_next(self: &mut Self) -> io::Result<Vec<String>> {
-		let img = match &mut self.state {
+		let (decoder, img) = match &mut self.state {
 			State::TestResults { results } => {
 				return match results.pop_front() {
 					Some(i) => i,
@@ -306,6 +320,7 @@ impl<'a> QRScanStream<'a> {
 				stream,
 				format,
 				converter,
+				decoder,
 			} => {
 				let (buf, _meta) = stream.next()?;
 				let buf_vec = buf.to_vec();
@@ -314,9 +329,12 @@ impl<'a> QRScanStream<'a> {
 					format.width,
 					format.height,
 				)?;
-				img
+				(decoder, img)
 			}
-			State::TestImages { input_data } => {
+			State::TestImages {
+				decoder,
+				input_data,
+			} => {
 				let data = match input_data.pop_front() {
 					Some(d) => d,
 					None => {
@@ -325,14 +343,10 @@ impl<'a> QRScanStream<'a> {
 				};
 				let conv = &converter_for_fourcc(&data.0)?;
 				let img = (conv)(&data.3, data.1, data.2)?;
-				img
+				(decoder, img)
 			}
 		};
-		// TODO: move to struct?
-		let multi_format_reader = MultiUseMultiFormatReader::default();
-		let mut scanner =
-			GenericMultipleBarcodeReader::new(multi_format_reader);
-		let results = scanner.decode_multiple_with_hints(
+		let results = decoder.decode_multiple_with_hints(
 			&mut BinaryBitmap::new(HybridBinarizer::new(
 				BufferedImageLuminanceSource::new(img),
 			)),
