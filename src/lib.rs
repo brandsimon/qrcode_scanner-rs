@@ -1,6 +1,6 @@
 mod image_decode;
 
-use std::collections::{HashMap, VecDeque};
+use std::collections::VecDeque;
 use std::io;
 
 use image::DynamicImage;
@@ -8,7 +8,7 @@ use log;
 use rxing::{
 	common::HybridBinarizer,
 	multi::{GenericMultipleBarcodeReader, MultipleBarcodeReader},
-	BinaryBitmap, BufferedImageLuminanceSource, Exceptions,
+	BinaryBitmap, BufferedImageLuminanceSource, DecodeHints, Exceptions,
 	MultiUseMultiFormatReader, RXingResult,
 };
 use v4l::io::traits::CaptureStream;
@@ -350,7 +350,7 @@ impl<'a> QRScanStream<'a> {
 			&mut BinaryBitmap::new(HybridBinarizer::new(
 				BufferedImageLuminanceSource::new(img),
 			)),
-			&HashMap::new(),
+			&DecodeHints::default(),
 		);
 		return Ok(decoded_results_to_vec(results));
 	}
