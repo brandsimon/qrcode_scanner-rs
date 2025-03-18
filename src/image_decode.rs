@@ -4,8 +4,8 @@ use std::io::Cursor;
 use ffimage::color::Rgb;
 use ffimage::iter::{BytesExt, ColorConvertExt, PixelsExt};
 use ffimage_yuv::{yuv::Yuv, yuv422::Yuv422};
-use image::io::Reader as ImageReader;
 use image::DynamicImage;
+use image::ImageReader;
 
 pub fn image_decode_error() -> io::Result<DynamicImage> {
 	return Err(io::Error::new(
